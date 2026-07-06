@@ -1,0 +1,40 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.wav
+AudioLeadIn: 0
+Mode: 3
+
+[Editor]
+
+[Metadata]
+Title:Staircase Test
+TitleUnicode:Staircase Test
+Artist:test
+ArtistUnicode:test
+Creator:test
+Version:Random Test
+Source:
+Tags:
+
+[Difficulty]
+HPDrainRate:0
+CircleSize:7
+OverallDifficulty:0
+ApproachRate:0
+SliderMultiplier:1.4
+SliderTickRate:1
+
+[Events]
+
+[TimingPoints]
+1000,500,4,0,0,100,1,0
+
+[HitObjects]
+36,192,1000,1,0,0:0:0:0:
+109,192,1500,1,0,0:0:0:0:
+182,192,2000,1,0,0:0:0:0:
+256,192,2500,1,0,0:0:0:0:
+329,192,3000,1,0,0:0:0:0:
+402,192,3500,1,0,0:0:0:0:
+475,192,4000,1,0,0:0:0:0:

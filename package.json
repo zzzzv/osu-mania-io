@@ -1,0 +1,46 @@
+{
+  "name": "osu-mania-io",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "TypeScript IO tools for osu!mania beatmaps and replays.",
+  "author": "zzzzv",
+  "license": "MIT",
+  "homepage": "https://github.com/zzzzv/osu-mania-io#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzzzv/osu-mania-io.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zzzzv/osu-mania-io/issues"
+  },
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./beatmap": "./dist/beatmap/index.mjs",
+    "./mod": "./dist/mod/index.mjs",
+    "./node": "./dist/node.mjs",
+    "./replay": "./dist/replay/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@typescript/native-preview": "7.0.0-dev.20260509.2",
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "dotnet-random-ts": "^0.1.0",
+    "lzma-js-simple-v2": "^1.2.3",
+    "osu-binary": "^0.1.0"
+  }
+}
