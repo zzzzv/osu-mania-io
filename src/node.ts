@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 import {
   parseBeatmap,
@@ -38,6 +39,7 @@ export function writeBeatmapFile(
     lineEnding?: 'lf' | 'crlf'
   },
 ): void {
+  mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, serializeBeatmap(beatmap, options), 'utf8')
 }
 
@@ -59,5 +61,6 @@ export function readReplayFile(
  * Serializes a mania replay and writes it to a file path.
  */
 export function writeReplayFile(filePath: string, replay: Replay): void {
+  mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, serializeReplay(replay))
 }

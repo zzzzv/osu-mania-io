@@ -4,6 +4,8 @@ export {
   applyBeatmapMods,
   applyLegacyBeatmapMods,
 } from './apply'
+export type { LegacyBeatmapModOptions } from './apply'
 export {
   createShuffledColumns,
+  createStableShuffledColumns,
 } from './random'

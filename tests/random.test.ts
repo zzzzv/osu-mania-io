@@ -3,8 +3,9 @@ import { readdirSync, existsSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { readReplayFile } from '../src/node'
-import { createShuffledColumns } from '../src/mod/modded-beatmap/random'
+import { readBeatmapFile, readReplayFile } from '../src/node'
+import { applyLegacyBeatmapMods, LegacyModBit } from '../src/mod'
+import { createShuffledColumns, createStableShuffledColumns } from '../src/mod/modded-beatmap/random'
 
 const randomTestDir = join(import.meta.dirname, 'fixtures', 'random-test')
 
@@ -104,10 +105,10 @@ describe('lazer random mod permutation', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Stable — algorithm unknown; log data for analysis
+// Stable — unit-level permutation generator check
 // ---------------------------------------------------------------------------
 
-describe('stable random mod permutation', () => {
+describe('stable random permutation generator', () => {
 	const entries = scanReplayFiles(join(randomTestDir, 'stable'))
 
 	if (entries.length === 0) {
@@ -115,10 +116,34 @@ describe('stable random mod permutation', () => {
 	}
 
 	for (const { file, label } of entries) {
-		it(`debug: seed and permutation from ${label}`, () => {
+		it(`matches createStableShuffledColumns for ${label}`, () => {
 			const { seed, permutation } = readReplayPermutation(file)
 
-			console.log(JSON.stringify({ file: label, seed, permutation }))
+			expect(permutation).toHaveLength(7)
+			expect(permutation).toEqual(createStableShuffledColumns(7, seed))
+		})
+	}
+})
+
+// ---------------------------------------------------------------------------
+// Stable — integration check through applyLegacyBeatmapMods
+// ---------------------------------------------------------------------------
+
+describe('stable random mod application', () => {
+	const entries = scanReplayFiles(join(randomTestDir, 'stable'))
+	const beatmap = readBeatmapFile(join(randomTestDir, 'staircase.osu'))
+
+	if (entries.length === 0) {
+		it.skip('no stable replay fixtures found', () => {})
+	}
+
+	for (const { file, label } of entries) {
+		it(`reproduces the played columns for ${label}`, () => {
+			const { seed, permutation } = readReplayPermutation(file)
+			const modded = applyLegacyBeatmapMods(beatmap, LegacyModBit.Random, { randomSeed: seed })
+
+			expect(modded.appliedMods).toContain('RD')
+			expect(modded.hitObjects.map((hitObject) => hitObject.column)).toEqual(permutation)
 		})
 	}
 })

@@ -1,7 +1,7 @@
 import { Random } from 'dotnet-random-ts'
 
 // ---------------------------------------------------------------------------
-// Lazer random — System.Random (LCG), used by ManiaModRandom
+// Lazer random — used by ManiaModRandom
 // ---------------------------------------------------------------------------
 
 const DEFAULT_RANDOM_SEED = 0x6d2b79f5
@@ -9,7 +9,8 @@ const DEFAULT_RANDOM_SEED = 0x6d2b79f5
 /**
  * Creates the deterministic column permutation used by lazer's RD mod.
  *
- * Matches .NET's System.Random via `OrderBy(_ => rng.Next())`.
+ * Mirrors `Enumerable.Range(0, keyCount).OrderBy(_ => rng.Next())` against
+ * .NET's `System.Random`, which is what `ManiaModRandom` applies.
  */
 export function createShuffledColumns(keyCount: number, seed?: number): number[] {
   const columns = Array.from({ length: keyCount }, (_, index) => index)
@@ -26,41 +27,31 @@ export function createShuffledColumns(keyCount: number, seed?: number): number[]
 }
 
 // ---------------------------------------------------------------------------
-// Stable random — xorshift PRNG (known in osu-stable code as FastRandom)
-// Ported from osu!'s LegacyRandom (ppy/osu: osu.Game/Utils/LegacyRandom.cs)
+// Stable random — used by osu!stable's mania Random mod
 // ---------------------------------------------------------------------------
 
-const INT_MASK = 0x7FFFFFFF
-const INT_TO_REAL = 1.0 / (INT_MASK + 1.0)
+/**
+ * Creates the deterministic column permutation used by osu!stable's RD mod.
+ *
+ * Stable seeds .NET's `System.Random` with the replay's random seed, then rolls
+ * `Next(keyCount)` repeatedly and keeps the first occurrence of each column
+ * until every column has been assigned. The order in which columns are first
+ * rolled is the column mapping. Because duplicates are discarded rather than
+ * re-mapped, the permutation distribution is not uniform (unlike lazer's).
+ */
+export function createStableShuffledColumns(keyCount: number, seed: number): number[] {
+  const random = new Random(seed)
+  const shuffledColumns: number[] = []
+  const assignedColumns = new Set<number>()
 
-class LegacyRandom {
-  private x: number
-  private y = 842502087
-  private z = 3579807591
-  private w = 273326509
+  while (shuffledColumns.length < keyCount) {
+    const column = random.next(keyCount)
 
-  constructor(seed: number) {
-    this.x = seed >>> 0
+    if (!assignedColumns.has(column)) {
+      assignedColumns.add(column)
+      shuffledColumns.push(column)
+    }
   }
 
-  nextUInt(): number {
-    const t = (this.x ^ (this.x << 11)) >>> 0
-    this.x = this.y
-    this.y = this.z
-    this.z = this.w
-    this.w = (this.w ^ (this.w >>> 19) ^ t ^ (t >>> 8)) >>> 0
-    return this.w
-  }
-
-  next(): number {
-    return INT_MASK & this.nextUInt()
-  }
-
-  nextDouble(): number {
-    return INT_TO_REAL * this.next()
-  }
-
-  nextUpperBound(upperBound: number): number {
-    return Math.floor(this.nextDouble() * upperBound)
-  }
+  return shuffledColumns
 }

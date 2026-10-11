@@ -2,7 +2,7 @@ import type { Beatmap, HitObject } from '../../beatmap'
 import type { LazerMod, LazerRandomMod, LazerRateAdjustMod, PlainLazerMod } from '../lazer'
 import { LegacyModBit, type LegacyModBitmask } from '../legacy'
 
-import { createShuffledColumns } from './random'
+import { createShuffledColumns, createStableShuffledColumns } from './random'
 import type { ModdedBeatmap } from './types'
 import {
   cloneBeatmap,
@@ -11,6 +11,23 @@ import {
   groupHitObjectsByColumn,
   sortHitObjects,
 } from './utils'
+
+/**
+ * A column shuffle strategy mapping the original column of each hit object to a new column.
+ */
+type ColumnShuffleStrategy = (keyCount: number, seed: number | undefined) => number[]
+
+/**
+ * Options for {@link applyLegacyBeatmapMods}.
+ */
+export interface LegacyBeatmapModOptions {
+  /**
+   * The seed used by the stable random (RD) mod, usually taken from `Replay.stableRandomSeed`.
+   *
+   * Defaults to 0 when omitted.
+   */
+  randomSeed?: number
+}
 
 export function createModdedBeatmap(beatmap: Beatmap): ModdedBeatmap {
   return {
@@ -23,23 +40,50 @@ export function createModdedBeatmap(beatmap: Beatmap): ModdedBeatmap {
 }
 
 export function applyBeatmapMods(beatmap: Beatmap, mods: readonly LazerMod[]): ModdedBeatmap {
+  return applyBeatmapModsWith(beatmap, mods, createShuffledColumns)
+}
+
+/**
+ * Applies stable-compatible legacy mods by first normalizing them to the shared lazer-facing mod model.
+ *
+ * Unlike lazer, stable's random mod derives its column permutation from a replay seed, so a seed must be
+ * provided whenever the random mod bit is set.
+ */
+export function applyLegacyBeatmapMods(
+  beatmap: Beatmap,
+  mods: LegacyModBitmask,
+  options?: LegacyBeatmapModOptions,
+): ModdedBeatmap {
+  const randomSeed = options?.randomSeed ?? 0
+
+  return applyBeatmapModsWith(beatmap, decodeLegacyModBitmask(mods), (keyCount) =>
+    createStableShuffledColumns(keyCount, randomSeed),
+  )
+}
+
+export function applyBeatmapMod(beatmap: ModdedBeatmap, mod: LazerMod): ModdedBeatmap {
+  return applyBeatmapModWith(beatmap, mod, createShuffledColumns)
+}
+
+function applyBeatmapModsWith(
+  beatmap: Beatmap,
+  mods: readonly LazerMod[],
+  shuffleColumns: ColumnShuffleStrategy,
+): ModdedBeatmap {
   let current = createModdedBeatmap(beatmap)
 
   for (const mod of mods) {
-    current = applyBeatmapMod(current, mod)
+    current = applyBeatmapModWith(current, mod, shuffleColumns)
   }
 
   return current
 }
 
-/**
- * Applies stable-compatible legacy mods by first normalizing them to the shared lazer-facing mod model.
- */
-export function applyLegacyBeatmapMods(beatmap: Beatmap, mods: LegacyModBitmask): ModdedBeatmap {
-  return applyBeatmapMods(beatmap, decodeLegacyModBitmask(mods))
-}
-
-export function applyBeatmapMod(beatmap: ModdedBeatmap, mod: LazerMod): ModdedBeatmap {
+function applyBeatmapModWith(
+  beatmap: ModdedBeatmap,
+  mod: LazerMod,
+  shuffleColumns: ColumnShuffleStrategy,
+): ModdedBeatmap {
   switch (mod.acronym) {
     case 'DT':
     case 'NC':
@@ -53,7 +97,7 @@ export function applyBeatmapMod(beatmap: ModdedBeatmap, mod: LazerMod): ModdedBe
     case 'MR':
       return applyMirrorMod(beatmap, mod as PlainLazerMod & { acronym: 'MR' })
     case 'RD':
-      return applyRandomMod(beatmap, mod as LazerRandomMod)
+      return applyRandomMod(beatmap, mod as LazerRandomMod, shuffleColumns)
     case 'IN':
       return applyInvertMod(beatmap, mod as PlainLazerMod & { acronym: 'IN' })
     case 'HO':
@@ -94,8 +138,12 @@ function applyMirrorMod(beatmap: ModdedBeatmap, mod: PlainLazerMod & { acronym: 
   })
 }
 
-function applyRandomMod(beatmap: ModdedBeatmap, mod: LazerRandomMod): ModdedBeatmap {
-  const shuffledColumns = createShuffledColumns(beatmap.difficulty.keyCount, mod.settings?.seed)
+function applyRandomMod(
+  beatmap: ModdedBeatmap,
+  mod: LazerRandomMod,
+  shuffleColumns: ColumnShuffleStrategy,
+): ModdedBeatmap {
+  const shuffledColumns = shuffleColumns(beatmap.difficulty.keyCount, mod.settings?.seed)
 
   return withAppendedMod(beatmap, mod.acronym, {
     hitObjects: beatmap.hitObjects.map((hitObject: HitObject) => ({

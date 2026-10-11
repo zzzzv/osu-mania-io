@@ -1,7 +1,7 @@
 {
   "name": "osu-mania-io",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript IO tools for osu!mania beatmaps and replays.",
   "author": "zzzzv",
   "license": "MIT",

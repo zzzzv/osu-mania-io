@@ -23,9 +23,17 @@ This project is still in active development. The public API may change.
 - Mania replay parsing and serialization
 - Basic beatmap mod application helpers
 
-## Unsupported
+## Random mod
 
-- **Stable random mod permutation** — The column shuffle algorithm used by osu!stable's random mode is unknown. Applying stable `random` will not produce correct results. Only lazer's RD (Random) mod permutation algorithm is supported.
+For most downstream usage there is no extra handling for lazer: `applyBeatmapMods` / `applyBeatmapMod` already use lazer's random algorithm.
+
+The only special case is **osu!stable legacy random**: its permutation depends on the replay seed, so callers using `applyLegacyBeatmapMods()` with `LegacyModBit.Random` should pass `Replay.stableRandomSeed`:
+
+```ts
+const modded = applyLegacyBeatmapMods(beatmap, replay.mods, {
+  randomSeed: replay.stableRandomSeed,
+})
+```
 
 ## AI Disclosure
 

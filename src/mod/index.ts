@@ -21,6 +21,7 @@ export {
 } from './lazer'
 
 export type { ModdedBeatmap } from './modded-beatmap'
+export type { LegacyBeatmapModOptions } from './modded-beatmap'
 export {
   applyBeatmapMods,
   applyBeatmapMod,
