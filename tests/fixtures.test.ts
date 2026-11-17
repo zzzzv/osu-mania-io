@@ -12,7 +12,11 @@ const fixtureDirectory = join(import.meta.dirname, 'fixtures')
 const pupaDirectory = join(fixtureDirectory, 'pupa')
 const pupaBeatmapPath = join(pupaDirectory, 'another.osu')
 const pupaBeatmap = readBeatmapFile(pupaBeatmapPath)
-const pupaBeatmapHash = createHash('md5').update(readFileSync(pupaBeatmapPath)).digest('hex')
+// osu! stores beatmaps with CRLF line endings and replay hashes are taken over
+// that form, so the checkout-dependent line endings must be normalised first.
+const pupaBeatmapHash = createHash('md5')
+	.update(readFileSync(pupaBeatmapPath, 'utf8').replace(/\r?\n/g, '\r\n'))
+	.digest('hex')
 
 /**
  * Hit object lines reduced to everything a mania replay/analysis tool cares
