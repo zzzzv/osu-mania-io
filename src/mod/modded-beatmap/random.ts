@@ -1,20 +1,28 @@
 import { Random } from 'dotnet-random-ts'
 
 // ---------------------------------------------------------------------------
-// Lazer random — used by ManiaModRandom
+// lazer random — used by ManiaModRandom
 // ---------------------------------------------------------------------------
-
-const DEFAULT_RANDOM_SEED = 0x6d2b79f5
 
 /**
  * Creates the deterministic column permutation used by lazer's RD mod.
  *
  * Mirrors `Enumerable.Range(0, keyCount).OrderBy(_ => rng.Next())` against
  * .NET's `System.Random`, which is what `ManiaModRandom` applies.
+ *
+ * osu!lazer always starts a random-mod play with a concrete seed
+ * (`Seed.Value ??= RNG.Next()`) and stores it in the score, so a missing seed
+ * means the caller is working from incomplete data rather than "use a default".
  */
-export function createShuffledColumns(keyCount: number, seed?: number): number[] {
+export function createShuffledColumns(keyCount: number, seed: number | undefined): number[] {
+  if (seed === undefined) {
+    throw new Error(
+      'The lazer random mod requires an explicit seed; read it from the replay\'s lazer mod settings (settings.seed).',
+    )
+  }
+
   const columns = Array.from({ length: keyCount }, (_, index) => index)
-  const random = new Random(seed ?? DEFAULT_RANDOM_SEED)
+  const random = new Random(seed)
 
   return columns
     .map((column, index) => ({
@@ -27,7 +35,7 @@ export function createShuffledColumns(keyCount: number, seed?: number): number[]
 }
 
 // ---------------------------------------------------------------------------
-// Stable random — used by osu!stable's mania Random mod
+// osu!stable random — used by stable's mania Random mod
 // ---------------------------------------------------------------------------
 
 /**

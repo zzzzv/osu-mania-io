@@ -1,7 +1,7 @@
 {
   "name": "osu-mania-io",
   "type": "module",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "TypeScript IO tools for osu!mania beatmaps and replays.",
   "author": "zzzzv",
   "license": "MIT",
@@ -13,12 +13,38 @@
   "bugs": {
     "url": "https://github.com/zzzzv/osu-mania-io/issues"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./dist/index.mjs",
-    "./beatmap": "./dist/beatmap/index.mjs",
-    "./mod": "./dist/mod/index.mjs",
-    "./node": "./dist/node.mjs",
-    "./replay": "./dist/replay/index.mjs",
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./beatmap": {
+      "types": "./dist/beatmap/index.d.mts",
+      "import": "./dist/beatmap/index.mjs",
+      "default": "./dist/beatmap/index.mjs"
+    },
+    "./mod": {
+      "types": "./dist/mod/index.d.mts",
+      "import": "./dist/mod/index.mjs",
+      "default": "./dist/mod/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "import": "./dist/node.mjs",
+      "default": "./dist/node.mjs"
+    },
+    "./replay": {
+      "types": "./dist/replay/index.d.mts",
+      "import": "./dist/replay/index.mjs",
+      "default": "./dist/replay/index.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [

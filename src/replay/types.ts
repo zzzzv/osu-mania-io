@@ -38,6 +38,10 @@ export interface ReplayFrame {
 export interface LazerReplayData {
   /**
    * The lazer online score identifier.
+   *
+   * This comes from the JSON score payload (`online_id`), which osu!lazer
+   * serialises as a JSON number, so it is a `number` while the container field
+   * exposed as `Replay.onlineScoreId` is a `bigint`.
    */
   onlineId: number
 
@@ -143,12 +147,24 @@ export interface Replay {
   frames: readonly ReplayFrame[]
 
   /**
-   * The online score identifier when available.
+   * The raw `time|health` graph text stored by the legacy container.
+   */
+  healthGraph?: string
+
+  /**
+   * The online score identifier read from the container, when available.
+   *
+   * Legacy containers store `0` (or `-1`) for offline scores, and the field is
+   * an int64 only from `gameVersion` 20140721 onwards, so this is a `bigint`.
    */
   onlineScoreId?: bigint
 
   /**
    * The legacy stable random seed stored alongside replay frames.
+   *
+   * osu!stable writes the seed it used for the random mod. osu!lazer writes a
+   * placeholder `0` in the same frame, so a value of `0` carries no seed
+   * information for lazer-authored replays.
    */
   stableRandomSeed?: number
 

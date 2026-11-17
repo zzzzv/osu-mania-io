@@ -1,139 +1,189 @@
 import { BeatmapSectionIo } from './section-io'
 import type { RawSection } from './section-io'
 import {
+  coloursSection,
   difficultySection,
   editorSection,
   eventsSection,
   generalSection,
   hitObjectsSection,
+  MANIA_GAME_MODE,
   metadataSection,
   timingPointsSection,
 } from './sections'
-import { normalizeHitObjectColumns, denormalizeHitObjectColumns } from './sections/hit-objects'
 import type { Beatmap, BeatmapFileFormat } from './types'
 
-const beatmapSectionRegistry = {
-  general: generalSection,
-  editor: editorSection,
-  metadata: metadataSection,
-  difficulty: difficultySection,
-  events: eventsSection,
-  timingPoints: timingPointsSection,
-  hitObjects: hitObjectsSection,
+/**
+ * The file format version written when neither the beatmap nor the caller
+ * provides one.
+ */
+const DEFAULT_FILE_FORMAT = 14
+
+/**
+ * Sections that are always written, even when empty.
+ */
+const mandatorySectionNames = new Set(['General', 'Metadata', 'Difficulty', 'TimingPoints', 'HitObjects'])
+
+/**
+ * Sections this library parses into its model; every other section is kept in
+ * `Beatmap.extraSections`.
+ */
+const knownSectionNames = new Set([...mandatorySectionNames, 'Editor', 'Events', 'Colours'])
+
+export interface ParseBeatmapOptions {
+  /**
+   * Whether to validate strictly.
+   *
+   * When `true` (the default), a beatmap that is not `Mode: 3` and any
+   * malformed numeric or list value raises an error. When `false`, unknown
+   * modes are accepted and unparseable lines are skipped.
+   */
+  strict?: boolean
+
+  /**
+   * Whether to parse the `[HitObjects]` section. Defaults to `true`.
+   */
+  includeHitObjects?: boolean
 }
 
-function findRawSection(sections: readonly RawSection[], name: string): RawSection | undefined {
-  return sections.find((section) => section.name === name)
+export interface SerializeBeatmapOptions {
+  /**
+   * Overrides the file format version written in the header.
+   */
+  fileFormat?: BeatmapFileFormat
+
+  /**
+   * The line ending to write. Defaults to `lf`.
+   */
+  lineEnding?: 'lf' | 'crlf'
 }
 
-export function parseBeatmap(
-  input: string,
-  options?: {
-    strict?: boolean
-    includeHitObjects?: boolean
-  },
-): Beatmap {
+export function parseBeatmap(input: string, options?: ParseBeatmapOptions): Beatmap {
   const strict = options?.strict ?? true
   const includeHitObjects = options?.includeHitObjects ?? true
   const rawSections = BeatmapSectionIo.parseRawSections(input)
-  const general = beatmapSectionRegistry.general.read(findRawSection(rawSections, 'General')?.lines ?? [])
-  const metadata = beatmapSectionRegistry.metadata.read(findRawSection(rawSections, 'Metadata')?.lines ?? [])
-  const difficulty = beatmapSectionRegistry.difficulty.read(findRawSection(rawSections, 'Difficulty')?.lines ?? [])
-  const events = beatmapSectionRegistry.events.read(findRawSection(rawSections, 'Events')?.lines ?? [])
-  const controlPoints = beatmapSectionRegistry.timingPoints.read(findRawSection(rawSections, 'TimingPoints')?.lines ?? [])
-  const parsedHitObjects = includeHitObjects
-    ? beatmapSectionRegistry.hitObjects.read(findRawSection(rawSections, 'HitObjects')?.lines ?? [])
-    : []
+  const fileFormat = BeatmapSectionIo.parseFileFormat(input) ?? DEFAULT_FILE_FORMAT
+  const keyValueContext = { strict }
 
-  if (!general || !metadata || !difficulty || !controlPoints || (includeHitObjects && !parsedHitObjects)) {
-    throw new Error('Beatmap is missing one or more required mania sections.')
+  const general = generalSection.read(findLines(rawSections, 'General'), keyValueContext)
+  const metadata = metadataSection.read(findLines(rawSections, 'Metadata'), keyValueContext)
+  const difficulty = difficultySection.read(findLines(rawSections, 'Difficulty'), keyValueContext)
+
+  if (!general) {
+    throw new Error('Beatmap is missing a [General] section.')
   }
 
-  if (strict && difficulty.keyCount <= 0) {
+  if (!metadata) {
+    throw new Error('Beatmap is missing a complete [Metadata] section.')
+  }
+
+  if (!difficulty) {
+    throw new Error('Beatmap is missing a complete [Difficulty] section.')
+  }
+
+  if (strict && general.mode !== MANIA_GAME_MODE) {
+    throw new Error(`Expected an osu!mania beatmap (Mode: ${MANIA_GAME_MODE}), but received Mode: ${general.mode}.`)
+  }
+
+  if (!Number.isFinite(difficulty.keyCount) || difficulty.keyCount < 1) {
     throw new Error(`Expected a positive mania key count, but received ${difficulty.keyCount}.`)
   }
 
+  const context = { strict, keyCount: difficulty.keyCount }
+
+  const controlPoints = timingPointsSection.read(findLines(rawSections, 'TimingPoints'), context)
+
+  if (!controlPoints || controlPoints.length === 0) {
+    throw new Error('Beatmap is missing a usable [TimingPoints] section.')
+  }
+
+  const events = eventsSection.read(findLines(rawSections, 'Events'), context)
+  const editor = editorSection.read(findLines(rawSections, 'Editor'), context)
+  const colours = coloursSection.read(findLines(rawSections, 'Colours'), context)
   const hitObjects = includeHitObjects
-    ? normalizeHitObjectColumns(parsedHitObjects ?? [], difficulty.keyCount)
+    ? hitObjectsSection.read(findLines(rawSections, 'HitObjects'), context) ?? []
     : []
+  const extraSections = rawSections.filter((section) => !knownSectionNames.has(section.name))
 
   return {
+    fileFormat,
     general,
-    editor: beatmapSectionRegistry.editor.read(findRawSection(rawSections, 'Editor')?.lines ?? []),
+    editor,
     metadata,
     difficulty,
     events,
     controlPoints,
-    breaks: events?.breaks,
+    colours,
     hitObjects,
+    extraSections: extraSections.length === 0 ? undefined : extraSections,
   }
 }
 
-export function serializeBeatmap(
-  beatmap: Beatmap,
-  options?: {
-    fileFormat?: BeatmapFileFormat
-    lineEnding?: 'lf' | 'crlf'
-  },
-): string {
+export function serializeBeatmap(beatmap: Beatmap, options?: SerializeBeatmapOptions): string {
   const lineEnding = options?.lineEnding === 'crlf' ? '\r\n' : '\n'
-  const fileFormat = options?.fileFormat ?? 14
-  const sections = [
-    {
-      name: 'osu file format v' + fileFormat,
-      lines: [],
-    },
-    {
-      name: beatmapSectionRegistry.general.name,
-      lines: [...beatmapSectionRegistry.general.write(beatmap.general)],
-    },
-    {
-      name: beatmapSectionRegistry.editor.name,
-      lines: [...beatmapSectionRegistry.editor.write(beatmap.editor)],
-    },
-    {
-      name: beatmapSectionRegistry.metadata.name,
-      lines: [...beatmapSectionRegistry.metadata.write(beatmap.metadata)],
-    },
-    {
-      name: beatmapSectionRegistry.difficulty.name,
-      lines: [...beatmapSectionRegistry.difficulty.write(beatmap.difficulty)],
-    },
-    {
-      name: beatmapSectionRegistry.events.name,
-      lines: [...beatmapSectionRegistry.events.write({
-        backgroundFilename: beatmap.events?.backgroundFilename,
-        breaks: beatmap.breaks,
-      })],
-    },
-    {
-      name: beatmapSectionRegistry.timingPoints.name,
-      lines: [...beatmapSectionRegistry.timingPoints.write(beatmap.controlPoints)],
-    },
-    {
-      name: beatmapSectionRegistry.hitObjects.name,
-      lines: [...beatmapSectionRegistry.hitObjects.write(denormalizeHitObjectColumns(beatmap.hitObjects, beatmap.difficulty.keyCount))],
-    },
-  ].filter((section) => section.name.startsWith('osu file format') || section.lines.length > 0)
+  const fileFormat = options?.fileFormat ?? beatmap.fileFormat ?? DEFAULT_FILE_FORMAT
+  const context = { keyCount: beatmap.difficulty.keyCount }
 
-  const [header, ...rest] = sections
+  const sections: RawSection[] = [
+    { name: generalSection.name, lines: [...generalSection.write(beatmap.general, context)] },
+    { name: editorSection.name, lines: [...editorSection.write(beatmap.editor, context)] },
+    { name: metadataSection.name, lines: [...metadataSection.write(beatmap.metadata, context)] },
+    { name: difficultySection.name, lines: [...difficultySection.write(beatmap.difficulty, context)] },
+    { name: eventsSection.name, lines: [...eventsSection.write(beatmap.events, context)] },
+    { name: timingPointsSection.name, lines: [...timingPointsSection.write(beatmap.controlPoints, context)] },
+    { name: coloursSection.name, lines: [...coloursSection.write(beatmap.colours, context)] },
+    { name: hitObjectsSection.name, lines: [...hitObjectsSection.write(beatmap.hitObjects, context)] },
+    ...(beatmap.extraSections ?? []).map((section) => ({
+      name: section.name,
+      lines: [...section.lines],
+    })),
+  ]
 
-  return [`${header?.name ?? 'osu file format v14'}`, '', BeatmapSectionIo.writeRawSections(rest, lineEnding)].filter(Boolean).join(lineEnding)
+  const body = sections.filter(
+    (section) => mandatorySectionNames.has(section.name) || section.lines.length > 0,
+  )
+
+  const text = BeatmapSectionIo.writeRawSections(body, lineEnding)
+
+  return `osu file format v${fileFormat}${lineEnding}${lineEnding}${text}${lineEnding}`
 }
 
+function findLines(sections: readonly RawSection[], name: string): readonly string[] {
+  return sections.find((section) => section.name === name)?.lines ?? []
+}
+
+export * from './sample-bank'
+export * from './timing'
+
+export {
+  clampScrollVelocity,
+  columnFromX,
+  EFFECT_FLAG_KIAI,
+  EFFECT_FLAG_OMIT_FIRST_BAR_LINE,
+  xFromColumn,
+} from './sections'
+
+export type { RawSection } from './section-io'
 export type {
   Beatmap,
+  BeatmapColours,
   BeatmapDifficulty,
   BeatmapEditorState,
+  BeatmapEvents,
   BeatmapFileFormat,
   BeatmapGeneral,
   BeatmapMetadata,
+  BackgroundEvent,
   BreakPeriod,
+  Colour,
   ControlPoint,
+  ControlPointBase,
   Countdown,
+  GameMode,
   HitObject,
-  SampleBank,
+  OverlayPosition,
   SampleReference,
   ScrollVelocityPoint,
   TimingPoint,
+  VideoEvent,
 } from './types'

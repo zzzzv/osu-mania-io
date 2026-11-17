@@ -75,7 +75,7 @@ describe('mania beatmap fixtures', () => {
 		expect(beatmap.metadata.artist).toBe('Ibuki Kido & Erii Yamazaki')
 		expect(beatmap.metadata.version).toBe('Another')
 		expect(beatmap.difficulty.keyCount).toBe(7)
-		expect(beatmap.events?.backgroundFilename).toBe('BG.jpg')
+		expect(beatmap.events?.background?.filename).toBe('BG.jpg')
 		expect(beatmap.controlPoints).toHaveLength(3)
 		expect(beatmap.controlPoints[0]).toMatchObject({
 			kind: 'timing',

@@ -9,8 +9,10 @@ import {
 } from './index'
 import type {
   Beatmap,
-  BeatmapFileFormat,
+  ParseBeatmapOptions,
+  ParseReplayOptions,
   Replay,
+  SerializeBeatmapOptions,
 } from './index'
 
 export * from './index'
@@ -20,10 +22,7 @@ export * from './index'
  */
 export function readBeatmapFile(
   filePath: string,
-  options?: {
-    strict?: boolean
-    includeHitObjects?: boolean
-  },
+  options?: ParseBeatmapOptions,
 ): Beatmap {
   return parseBeatmap(readFileSync(filePath, 'utf8'), options)
 }
@@ -34,10 +33,7 @@ export function readBeatmapFile(
 export function writeBeatmapFile(
   filePath: string,
   beatmap: Beatmap,
-  options?: {
-    fileFormat?: BeatmapFileFormat
-    lineEnding?: 'lf' | 'crlf'
-  },
+  options?: SerializeBeatmapOptions,
 ): void {
   mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, serializeBeatmap(beatmap, options), 'utf8')
@@ -45,14 +41,13 @@ export function writeBeatmapFile(
 
 /**
  * Reads and parses a mania replay from a file path.
+ *
+ * The key count may be passed directly or taken from a parsed beatmap.
  */
 export function readReplayFile(
   filePath: string,
-  keyCount: number,
-  options?: {
-    includeFrames?: boolean
-    strict?: boolean
-  },
+  keyCount: number | Beatmap,
+  options?: ParseReplayOptions,
 ): Replay {
   return parseReplay(new Uint8Array(readFileSync(filePath)), keyCount, options)
 }

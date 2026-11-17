@@ -1,18 +1,41 @@
-import type { BeatmapSection } from '../section-io'
+import {
+  type BeatmapSection,
+  BeatmapSectionIo,
+} from '../section-io'
+import {
+  type SampleBank,
+  sampleBankFromIndex,
+  sampleBankToIndex,
+} from '../sample-bank'
 
 /**
- * Shared sample information used by mania timing points and hit objects.
+ * Mania lane width in osu! pixels.
+ */
+const PLAYFIELD_WIDTH = 512
+
+/**
+ * The `type` bit marking an osu!mania hold note.
+ */
+const HOLD_NOTE_TYPE_FLAG = 128
+
+/**
+ * Shared sample information used by mania hit objects.
  */
 export interface SampleReference {
-  bank?: 'auto' | 'normal' | 'soft' | 'drum'
-  additionBank?: 'auto' | 'normal' | 'soft' | 'drum'
+  bank?: SampleBank
+  additionBank?: SampleBank
   customIndex?: number
   volume?: number
   filename?: string
 }
 
 /**
- * Shared properties for all mania hit objects.
+ * A mania hit object.
+ *
+ * `column` is always zero-based and derived from the raw `x` position. Like
+ * osu!lazer's encoder, the raw `x`/`y` position and the ruleset-irrelevant
+ * `type` bits (the new-combo flag) are normalized away on write: notes are
+ * written centred in their lane with `type = 1` and holds with `type = 128`.
  */
 export interface HitObject {
   column: number
@@ -22,101 +45,145 @@ export interface HitObject {
   sample?: SampleReference
 }
 
-const sampleBanks = ['auto', 'normal', 'soft', 'drum'] as const
-
 export const hitObjectsSection: BeatmapSection<readonly HitObject[]> = {
   name: 'HitObjects',
-  read(lines) {
+  read(lines, context) {
+    const keyCount = requireKeyCount(context.keyCount)
     const hitObjects: HitObject[] = []
 
     for (const line of lines) {
-      const parts = line.split(',')
+      const parts = BeatmapSectionIo.splitList(line)
 
       if (parts.length < 5) {
+        if (context.strict) {
+          throw new Error(`Malformed hit object: ${line}`)
+        }
+
         continue
       }
 
-      const x = Number(parts[0])
-      const startTime = Number(parts[2])
-      const type = Number(parts[3])
-      const hitSoundFlags = Number(parts[4])
-      const objectParams = parts[5] ?? ''
-      const sampleParams = parts[parts.length - 1] ?? ''
+      const x = BeatmapSectionIo.parseNumber(parts[0] ?? '', 'hit object x', context.strict)
+      const startTime = BeatmapSectionIo.parseNumber(parts[2] ?? '', 'hit object time', context.strict)
+      const type = BeatmapSectionIo.parseNumber(parts[3] ?? '', 'hit object type', context.strict)
 
-      const sample = parseSampleReference(sampleParams)
-      const endTime = (type & 128) !== 0
-        ? Number(objectParams.split(':')[0])
-        : undefined
+      if (x === undefined || startTime === undefined || type === undefined) {
+        continue
+      }
+
+      const hitSoundFlags = BeatmapSectionIo.parseNumber(parts[4] ?? '0', 'hit object hit sound', context.strict)
+      const hold = (type & HOLD_NOTE_TYPE_FLAG) !== 0
+      const { endTime, sampleParams } = hold
+        ? readHoldParams(parts[5], context.strict)
+        : { endTime: undefined, sampleParams: parts[5] }
 
       hitObjects.push({
-        column: Math.max(0, Math.floor(x)),
+        column: columnFromX(x, keyCount),
         startTime,
-        hitSoundFlags: Number.isFinite(hitSoundFlags) ? hitSoundFlags : undefined,
-        sample,
-        endTime: Number.isFinite(endTime ?? Number.NaN) ? endTime : undefined,
+        hitSoundFlags,
+        sample: parseSampleReference(sampleParams),
+        endTime,
       })
     }
 
     return hitObjects.length === 0 ? undefined : hitObjects
   },
-  write(value) {
-    return value?.map((item) => {
-      const type = item.endTime === undefined ? 1 : 128
+  write(value, context) {
+    if (!value) {
+      return []
+    }
+
+    const keyCount = requireKeyCount(context.keyCount)
+
+    return value.map((item) => {
+      const type = item.endTime === undefined ? 1 : HOLD_NOTE_TYPE_FLAG
       const sample = serializeSampleReference(item.sample)
       const objectParams = item.endTime === undefined
         ? sample
         : `${item.endTime}:${sample}`
 
       return [
-        item.column,
+        xFromColumn(item.column, keyCount),
         192,
         item.startTime,
         type,
         item.hitSoundFlags ?? 0,
         objectParams,
       ].join(',')
-    }) ?? []
+    })
   },
 }
 
-function parseSampleReference(value: string): SampleReference | undefined {
+/**
+ * Converts a raw `.osu` x position into a zero-based mania column.
+ */
+export function columnFromX(x: number, keyCount: number): number {
+  const column = Math.floor(x * keyCount / PLAYFIELD_WIDTH)
+
+  return Math.min(keyCount - 1, Math.max(0, column))
+}
+
+/**
+ * Converts a zero-based mania column into a centred `.osu` x position.
+ */
+export function xFromColumn(column: number, keyCount: number): number {
+  return Math.floor((column + 0.5) * PLAYFIELD_WIDTH / keyCount)
+}
+
+function requireKeyCount(keyCount: number | undefined): number {
+  if (keyCount === undefined || keyCount <= 0) {
+    throw new Error('Parsing or writing mania hit objects requires a positive key count.')
+  }
+
+  return keyCount
+}
+
+/**
+ * Splits a hold note's `endTime:hitSample` parameter, which uses a colon
+ * separator instead of a comma.
+ */
+function readHoldParams(
+  objectParams: string | undefined,
+  strict: boolean,
+): { endTime: number | undefined; sampleParams: string | undefined } {
+  if (!objectParams) {
+    return { endTime: undefined, sampleParams: undefined }
+  }
+
+  const separatorIndex = objectParams.indexOf(':')
+
+  if (separatorIndex < 0) {
+    return { endTime: BeatmapSectionIo.parseNumber(objectParams, 'hold note end time', strict), sampleParams: undefined }
+  }
+
+  return {
+    endTime: BeatmapSectionIo.parseNumber(objectParams.slice(0, separatorIndex), 'hold note end time', strict),
+    sampleParams: objectParams.slice(separatorIndex + 1),
+  }
+}
+
+function parseSampleReference(value: string | undefined): SampleReference | undefined {
   if (!value) {
     return undefined
   }
 
-  const [bank, additionBank, customIndex, volume, filename] = value.split(':')
+  const parts = value.split(':')
+  const [bank, additionBank, customIndex, volume] = parts
+  // The filename is the only field that may itself contain a colon.
+  const filename = parts.length > 5 ? parts.slice(4).join(':') : parts[4]
 
   return {
-    bank: sampleBanks[Number(bank)] as SampleReference['bank'] | undefined,
-    additionBank: sampleBanks[Number(additionBank)] as SampleReference['additionBank'] | undefined,
-    customIndex: Number.isFinite(Number(customIndex)) ? Number(customIndex) : undefined,
-    volume: Number.isFinite(Number(volume)) ? Number(volume) : undefined,
-    filename: filename || undefined,
+    bank: sampleBankFromIndex(readIndex(bank)),
+    additionBank: sampleBankFromIndex(readIndex(additionBank)),
+    customIndex: readIndex(customIndex),
+    volume: readIndex(volume),
+    filename: filename ? filename : undefined,
   }
 }
 
-/**
- * Converts raw `.osu` x positions into zero-based mania columns.
- */
-export function normalizeHitObjectColumns(hitObjects: readonly HitObject[], keyCount: number): HitObject[] {
-  const laneWidth = 512 / keyCount
+function readIndex(value: string | undefined): number | undefined {
+  const parsed = Number(value)
 
-  return hitObjects.map((hitObject) => ({
-    ...hitObject,
-    column: Math.min(keyCount - 1, Math.max(0, Math.floor(hitObject.column / laneWidth))),
-  }))
-}
-
-/**
- * Converts zero-based mania columns back into centered `.osu` x positions.
- */
-export function denormalizeHitObjectColumns(hitObjects: readonly HitObject[], keyCount: number): HitObject[] {
-  const laneWidth = 512 / keyCount
-
-  return hitObjects.map((hitObject) => ({
-    ...hitObject,
-    column: Math.floor((hitObject.column + 0.5) * laneWidth),
-  }))
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function serializeSampleReference(value: SampleReference | undefined): string {
@@ -124,12 +191,9 @@ function serializeSampleReference(value: SampleReference | undefined): string {
     return '0:0:0:0:'
   }
 
-  const bank = value.bank ? sampleBanks.indexOf(value.bank) : 0
-  const additionBank = value.additionBank ? sampleBanks.indexOf(value.additionBank) : 0
-
   return [
-    Math.max(bank, 0),
-    Math.max(additionBank, 0),
+    sampleBankToIndex(value.bank),
+    sampleBankToIndex(value.additionBank),
     value.customIndex ?? 0,
     value.volume ?? 0,
     value.filename ?? '',

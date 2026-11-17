@@ -17,13 +17,17 @@ export type {
 } from './lazer'
 export {
   parseLazerMod,
+  readLazerModBooleanSetting,
+  readLazerModNumberSetting,
   serializeLazerMod,
 } from './lazer'
 
 export type { ModdedBeatmap } from './modded-beatmap'
 export type { LegacyBeatmapModOptions } from './modded-beatmap'
 export {
-  applyBeatmapMods,
   applyBeatmapMod,
+  applyBeatmapMods,
   applyLegacyBeatmapMods,
+  createShuffledColumns,
+  createStableShuffledColumns,
 } from './modded-beatmap'

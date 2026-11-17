@@ -156,6 +156,54 @@ export function serializeLazerMod(mod: LazerMod): Record<string, unknown> {
   }
 }
 
+/**
+ * Every setting field known to this library, used to bridge the model property
+ * name and the wire name.
+ */
+const settingFields: readonly SettingFieldDescriptor[] = [
+  ...difficultyAdjustFields,
+  ...rateAdjustFields,
+  ...timeRampFields,
+  ...randomFields,
+]
+
+/**
+ * Reads a numeric setting by its model property name.
+ *
+ * Hand-built mods may use either the model property name (`speedChange`) or the
+ * wire name (`speed_change`); both resolve.
+ */
+export function readLazerModNumberSetting(mod: LazerMod, property: string): number | undefined {
+  const value = readSettingValue(mod, property)
+
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * Reads a boolean setting by its model property name.
+ */
+export function readLazerModBooleanSetting(mod: LazerMod, property: string): boolean | undefined {
+  const value = readSettingValue(mod, property)
+
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function readSettingValue(mod: LazerMod, property: string): unknown {
+  const settings: unknown = mod.settings
+
+  if (!isRecord(settings)) {
+    return undefined
+  }
+
+  if (property in settings) {
+    return settings[property]
+  }
+
+  const wireName = settingFields.find((field) => field.property === property)?.wire ?? property
+
+  return settings[wireName]
+}
+
 function parseSettings<TFields extends readonly SettingFieldDescriptor[]>(
   raw: Record<string, unknown> | undefined,
   fields: TFields,

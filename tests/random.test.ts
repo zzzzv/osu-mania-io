@@ -4,8 +4,12 @@ import { readdirSync, existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { readBeatmapFile, readReplayFile } from '../src/node'
-import { applyLegacyBeatmapMods, LegacyModBit } from '../src/mod'
-import { createShuffledColumns, createStableShuffledColumns } from '../src/mod/modded-beatmap/random'
+import {
+	applyLegacyBeatmapMods,
+	createShuffledColumns,
+	createStableShuffledColumns,
+	LegacyModBit,
+} from '../src/mod'
 
 const randomTestDir = join(import.meta.dirname, 'fixtures', 'random-test')
 

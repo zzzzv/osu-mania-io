@@ -5,6 +5,7 @@ export default defineConfig({
   dts: {
     tsgo: true,
   },
-  exports: true,
-  // ...config options
+  // `package.json` is the source of truth for `exports`: tsdown's `exports: true`
+  // rewrites it on every build and drops the explicit `types` conditions.
+  exports: false,
 })

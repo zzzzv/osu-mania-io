@@ -1,32 +1,10 @@
-import type { Beatmap, HitObject, TimingPoint } from '../../beatmap'
-
-export function computeInvertDuration(beatmap: Beatmap, startTime: number, nextTime: number): number {
-  const gap = nextTime - startTime
-  const beatLength = getBeatLengthAt(beatmap, nextTime)
-
-  return Math.max(gap / 2, gap - beatLength / 4)
-}
-
-export function getBeatLengthAt(beatmap: Beatmap, time: number): number {
-  const timingPoints = beatmap.controlPoints.filter((point): point is TimingPoint => point.kind === 'timing')
-  let beatLength = timingPoints[0]?.beatLength ?? 600
-
-  for (const point of timingPoints) {
-    if (point.time > time) {
-      break
-    }
-
-    beatLength = point.beatLength
-  }
-
-  return beatLength
-}
+import type { Beatmap, HitObject } from '../../beatmap'
 
 export function groupHitObjectsByColumn(hitObjects: readonly HitObject[], keyCount: number): HitObject[][] {
   const groups = Array.from({ length: keyCount }, () => new Array<HitObject>())
 
   for (const hitObject of hitObjects) {
-    groups[hitObject.column]?.push(cloneHitObject(hitObject))
+    groups[hitObject.column]?.push(hitObject)
   }
 
   for (const group of groups) {
@@ -51,9 +29,26 @@ export function cloneBeatmap<TBeatmap extends Beatmap>(beatmap: TBeatmap): TBeat
       tags: beatmap.metadata.tags ? [...beatmap.metadata.tags] : undefined,
     },
     difficulty: { ...beatmap.difficulty },
+    events: beatmap.events
+      ? {
+          background: beatmap.events.background ? { ...beatmap.events.background } : undefined,
+          video: beatmap.events.video ? { ...beatmap.events.video } : undefined,
+          breaks: beatmap.events.breaks?.map((breakPeriod) => ({ ...breakPeriod })),
+          storyboardLines: beatmap.events.storyboardLines ? [...beatmap.events.storyboardLines] : undefined,
+        }
+      : undefined,
     controlPoints: beatmap.controlPoints.map((point) => ({ ...point })),
-    breaks: beatmap.breaks?.map((breakPeriod) => ({ ...breakPeriod })),
+    colours: beatmap.colours
+      ? {
+          combo: beatmap.colours.combo.map((colour) => [...colour] as const),
+          sliderTrackOverride: beatmap.colours.sliderTrackOverride
+            ? [...beatmap.colours.sliderTrackOverride] as const
+            : undefined,
+          sliderBorder: beatmap.colours.sliderBorder ? [...beatmap.colours.sliderBorder] as const : undefined,
+        }
+      : undefined,
     hitObjects: beatmap.hitObjects.map(cloneHitObject),
+    extraSections: beatmap.extraSections?.map((section) => ({ name: section.name, lines: [...section.lines] })),
   }
 }
 

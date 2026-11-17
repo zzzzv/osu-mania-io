@@ -87,16 +87,9 @@ export function parseTrailingLazerData(reader: BinaryReader): LazerReplayData | 
 
   try {
     return parseLazerReplayData(rawText)
-  } catch {
-    return {
-      onlineId: -1,
-      mods: [],
-      statistics: [0, 0, 0, 0, 0, 0],
-      maximumStatistics: [0, 0, 0, 0, 0, 0],
-      clientVersion: '',
-      userId: -1,
-      pauses: [],
-    }
+  } catch (error) {
+    // Returning an empty payload here would silently hide corrupted score data.
+    throw new Error(`Failed to parse the lazer score payload: ${(error as Error).message}`)
   }
 }
 

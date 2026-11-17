@@ -8,9 +8,9 @@ import {
  */
 export interface BeatmapMetadata {
   title: string
-  titleUnicode?: string
+  titleUnicode: string
   artist: string
-  artistUnicode?: string
+  artistUnicode: string
   creator: string
   version: string
   source?: string
@@ -21,7 +21,7 @@ export interface BeatmapMetadata {
 
 export const metadataSection = BeatmapSectionIo.createKeyValueSection<BeatmapMetadata>({
   name: 'Metadata',
-  read(pairs) {
+  read(pairs, context) {
     const title = BeatmapSectionIo.readString(pairs, 'Title')
     const artist = BeatmapSectionIo.readString(pairs, 'Artist')
     const creator = BeatmapSectionIo.readString(pairs, 'Creator')
@@ -35,15 +35,16 @@ export const metadataSection = BeatmapSectionIo.createKeyValueSection<BeatmapMet
 
     return {
       title,
-      titleUnicode: BeatmapSectionIo.readString(pairs, 'TitleUnicode'),
+      // Legacy files commonly omit the unicode variants; mirror the romanised value.
+      titleUnicode: BeatmapSectionIo.readString(pairs, 'TitleUnicode') ?? title,
       artist,
-      artistUnicode: BeatmapSectionIo.readString(pairs, 'ArtistUnicode'),
+      artistUnicode: BeatmapSectionIo.readString(pairs, 'ArtistUnicode') ?? artist,
       creator,
       version,
       source: BeatmapSectionIo.readString(pairs, 'Source'),
       tags: tags ? tags.split(/\s+/).filter(Boolean) : undefined,
-      beatmapId: BeatmapSectionIo.readNumber(pairs, 'BeatmapID'),
-      beatmapSetId: BeatmapSectionIo.readNumber(pairs, 'BeatmapSetID'),
+      beatmapId: BeatmapSectionIo.readNumber(pairs, 'BeatmapID', context),
+      beatmapSetId: BeatmapSectionIo.readNumber(pairs, 'BeatmapSetID', context),
     }
   },
   write(value) {

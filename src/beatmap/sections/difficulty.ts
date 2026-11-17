@@ -10,18 +10,20 @@ export interface BeatmapDifficulty {
   hpDrainRate: number
   keyCount: number
   overallDifficulty: number
+  approachRate: number
   sliderMultiplier: number
   sliderTickRate: number
 }
 
 export const difficultySection = BeatmapSectionIo.createKeyValueSection<BeatmapDifficulty>({
   name: 'Difficulty',
-  read(pairs) {
-    const hpDrainRate = BeatmapSectionIo.readNumber(pairs, 'HPDrainRate')
-    const keyCount = BeatmapSectionIo.readNumber(pairs, 'CircleSize')
-    const overallDifficulty = BeatmapSectionIo.readNumber(pairs, 'OverallDifficulty')
-    const sliderMultiplier = BeatmapSectionIo.readNumber(pairs, 'SliderMultiplier')
-    const sliderTickRate = BeatmapSectionIo.readNumber(pairs, 'SliderTickRate')
+  read(pairs, context) {
+    const hpDrainRate = BeatmapSectionIo.readNumber(pairs, 'HPDrainRate', context)
+    const keyCount = BeatmapSectionIo.readNumber(pairs, 'CircleSize', context)
+    const overallDifficulty = BeatmapSectionIo.readNumber(pairs, 'OverallDifficulty', context)
+    const sliderMultiplier = BeatmapSectionIo.readNumber(pairs, 'SliderMultiplier', context)
+    const sliderTickRate = BeatmapSectionIo.readNumber(pairs, 'SliderTickRate', context)
+    const approachRate = BeatmapSectionIo.readNumber(pairs, 'ApproachRate', context)
 
     if (
       hpDrainRate === undefined
@@ -37,6 +39,8 @@ export const difficultySection = BeatmapSectionIo.createKeyValueSection<BeatmapD
       hpDrainRate,
       keyCount,
       overallDifficulty,
+      // osu!mania has no approach rate, so legacy files omit it and imply the OD value.
+      approachRate: approachRate ?? overallDifficulty,
       sliderMultiplier,
       sliderTickRate,
     }
@@ -47,6 +51,7 @@ export const difficultySection = BeatmapSectionIo.createKeyValueSection<BeatmapD
     BeatmapSectionIo.appendNumber(pairs, 'HPDrainRate', value.hpDrainRate)
     BeatmapSectionIo.appendNumber(pairs, 'CircleSize', value.keyCount)
     BeatmapSectionIo.appendNumber(pairs, 'OverallDifficulty', value.overallDifficulty)
+    BeatmapSectionIo.appendNumber(pairs, 'ApproachRate', value.approachRate)
     BeatmapSectionIo.appendNumber(pairs, 'SliderMultiplier', value.sliderMultiplier)
     BeatmapSectionIo.appendNumber(pairs, 'SliderTickRate', value.sliderTickRate)
 
